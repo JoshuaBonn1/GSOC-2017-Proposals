@@ -14,6 +14,15 @@ Timeline::Timeline(QWidget *parent) :
     ui(new Ui::Timeline)
 {
     ui->setupUi(this);
+
+
+    //Location of grid on window
+    QPoint* topLeftGridPoint = new QPoint(50, 100);
+
+    //Size of grid
+    QSize* gridSize = new QSize(800, 300);
+    grid = QRect(*topLeftGridPoint, *gridSize);
+    selection_cell = QPoint(0,0);
 }
 
 Timeline::~Timeline()
@@ -21,13 +30,49 @@ Timeline::~Timeline()
     delete ui;
 }
 
+void Timeline::mousePressEvent(QMouseEvent *event){
+    int xpos = event->x();
+    int ypos = event->y();
+
+    //Ignore if outside box
+    if(!grid.contains(xpos, ypos, true)) return;
+
+    //Finds cell location
+    int loc_x = int((xpos - grid.left()) /  gridWidth);
+    int loc_y = int((ypos - grid.top()) / gridHeight);
+
+    if(event->modifiers().testFlag(Qt::ShiftModifier)){
+        //Finds size of selection
+        int size_x = loc_x - selection_cell.x();
+        int size_y = loc_y - selection_cell.y();
+
+        //Adjusts size for positive selection ranges
+        if(size_x >= 0) size_x++;
+        if(size_y >= 0) size_y++;
+
+        selection_size = QPoint(size_x, size_y);
+    }
+    else{
+        //Resets size to (1,1)
+        selection_size = QPoint(1, 1);
+        selection_cell = QPoint(loc_x, loc_y);
+    }
+    update();
+}
+
 void Timeline::wheelEvent(QWheelEvent *event)
 {
     if (event->modifiers().testFlag(Qt::ControlModifier))
     {
         if(event->angleDelta().y() > 0){
-            gridWidth++;
-            gridHeight++;
+            if(event->modifiers().testFlag(Qt::ShiftModifier)){
+                gridHeight++;
+            }
+            else{
+                gridHeight++;
+                gridWidth++;
+            }
+
         }
         else{
             gridWidth--;
@@ -58,16 +103,6 @@ QRect Timeline::generateRect(QRect grid, int instrument, int measure, int length
 }
 
 void Timeline::paintEvent(QPaintEvent *event){
-    //Number of meta rows
-    int meta = 3;
-
-    //Location of grid on window
-    QPoint* topLeftGridPoint = new QPoint(50, 100);
-
-    //Size of grid
-    QSize* gridSize = new QSize(800, 300);
-    QRect grid = QRect(*topLeftGridPoint, *gridSize);
-
     QPoint top = grid.topLeft();
     QPoint bottom = grid.bottomLeft();
     QPoint left = grid.topLeft();
@@ -189,23 +224,26 @@ void Timeline::paintEvent(QPaintEvent *event){
     //text.setX(text.x() + gridWidth * 5);
     text.setX(original_x);
 
-    //Instruments
-    QString instr[] = {tr("Piano"),
-                       tr("Flute"),
-                       tr("Flute II"),
-                       tr("Guitar"),
-                       tr("Soprano"),
-                       tr("Alto"),
-                       tr("Tenor"),
-                       tr("Bass"),
-                       tr("Drums"),
-                       tr("Violin"),
-                       tr("Cello"),};
+
+    //Draw instrument names
     for(unsigned int i = 0; i < (sizeof(instr)/sizeof(*instr)); i++){
         text.setY(text.y() + gridHeight);
         if(text.y() > grid.bottom()) break;
         painter.drawText(text, instr[i]);
     }
 
+    //Draw selection box
+    if(!selection_cell.isNull()){
+        QRect cell((selection_cell.x() * gridWidth) + grid.left(),
+                   (selection_cell.y() * gridHeight) + grid.top(),
+                   gridWidth * selection_size.x(),
+                   gridHeight * selection_size.y());
+        if(cell.right() > grid.right()) cell.setRight(grid.right());
+        if(cell.bottom() > grid.bottom()) cell.setBottom(grid.bottom());
+        painter.setPen(Qt::blue);
+        painter.drawRect(cell);
+        painter.fillRect(cell, QColor(0, 0, 255, 64));
+
+    }
 
 }
